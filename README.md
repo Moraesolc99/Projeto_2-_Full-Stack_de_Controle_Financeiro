@@ -1,13 +1,13 @@
 # Caderneta — Controle financeiro pessoal (Projeto 2)
 
-Aplicação full stack de controle financeiro. Esta etapa entrega a **API REST** em **Node.js + Express**, com autenticação **JWT**. A interface em React chega na próxima etapa (pasta `frontend/`).
+Aplicação full stack de controle financeiro: API REST em **Node.js + Express** com autenticação **JWT** e uma SPA em **React (Vite)**.
 
 ## Integrantes
 
 | Nome | RA | Responsável por |
 |---|---|---|
-| OCTAVIO LUIS CONEJO DE MORAES | 2268108 | Front-end  (SPA React) |
-| YURI GARCIA YOSHIDA | 1835807 |  Back-end (API) |
+| OCTAVIO LUIS CONEJO DE MORAES | 2268108 | Back-end (API) |
+| YURI GARCIA YOSHIDA | 1835807 | Front-end (SPA React) |
 | GLEISSON SANTOS VIEIRA | 2525798 | Banco de Dados |
 
 ## Apresentação
@@ -17,6 +17,7 @@ Aplicação full stack de controle financeiro. Esta etapa entrega a **API REST**
 ```
 projeto2-financas/
 ├── backend/     API REST (Express, JWT, bcrypt)
+├── frontend/    SPA React (React Router, Axios, Recharts)
 └── docs/        BANCO-DE-DADOS.md — especificação do banco
 ```
 
@@ -25,11 +26,16 @@ projeto2-financas/
 | Camada | Bibliotecas |
 |---|---|
 | Back-end | Node.js 20+, Express 5, jsonwebtoken, bcrypt, cors, dotenv, express-rate-limit |
+| Front-end | React 18, Vite 6, React Router 6, Axios, Recharts |
 | Banco | _a definir pelo grupo_ (ver `docs/BANCO-DE-DADOS.md`) |
 
 ## Como rodar
 
 Pré-requisito: Node.js 20 ou superior.
+
+**Atalho no Windows:** dois cliques em `iniciar.bat` na raiz do projeto. Ele instala as dependências na primeira vez, cria os `.env`, sobe a API e o front em duas janelas e abre o navegador.
+
+### 1. Back-end
 
 ```bash
 cd backend
@@ -38,29 +44,28 @@ cp .env.example .env          # no Windows: copy .env.example .env
 npm run dev                    # API em http://localhost:3000
 ```
 
-Enquanto o banco não estiver ligado, a API roda com `MODO_BANCO=memoria`: os dados de demonstração são recriados a cada vez que ela sobe, e quem estava logado precisa entrar de novo.
+Enquanto o banco não estiver ligado, a API roda com `MODO_BANCO=memoria`: os dados de demonstração são recriados a cada vez que ela sobe.
 
 Usuários de demonstração (senha `senha1234`):
-- `ana@email.com` — 3 meses de lançamentos, dois cartões, compras parceladas e assinaturas mensais
+- `ana@email.com` — 3 meses de lançamentos, dois cartões e compras parceladas
 - `bruno@email.com` — usado para testar o isolamento entre usuários
 
-Testes automáticos (12 testes de ponta a ponta; sobem o servidor numa porta separada):
+Testes automáticos da API (12 testes; sobem o servidor numa porta separada):
 
 ```bash
 npm test
 ```
 
-Teste rápido sem interface (Postman, Insomnia ou curl):
+### 2. Front-end
 
 ```bash
-curl -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"ana@email.com","senha":"senha1234"}'
+cd frontend
+npm install
+cp .env.example .env          # VITE_API_URL=http://localhost:3000/api
+npm run dev                    # http://localhost:5173
 ```
 
-Use o `token` da resposta no cabeçalho `Authorization: Bearer <token>` das outras rotas.
-
-### Banco de dados
+### 3. Banco de dados
 
 _Seção a ser completada pelo responsável pelo banco: como criar o banco, rodar o schema e o seed, e configurar `DATABASE_URL` no `.env`. Depois disso, `MODO_BANCO=banco`._
 
@@ -107,7 +112,7 @@ Todas as respostas de erro seguem o mesmo formato:
 
 ## Decisões de projeto
 
-**Organização.** `backend/src/` tem só `server.js` e as quatro pastas pedidas. Os controladores ficam nos arquivos de `routes/`; o acesso a dados fica só em `models/`; erros passam pelo middleware central `middlewares/erros.js`.
+**Organização do back-end.** `src/` tem só `server.js` e as quatro pastas pedidas. Os controladores ficam nos arquivos de `routes/`; o acesso a dados fica só em `models/`; erros passam pelo middleware central `middlewares/erros.js`.
 
 **Funções puras em `models/`.** `cpfValido`, `calcularFatura`, `dividirEmParcelas` e os utilitários de data ficam em `models/regras.js`, porque são regras de negócio. `models/saude.js` calcula os indicadores da saúde financeira usando os outros models.
 
@@ -117,13 +122,15 @@ Todas as respostas de erro seguem o mesmo formato:
 
 **Parcelas.** Cada parcela é um lançamento. A `data` de cada uma avança um mês (assim os relatórios mensais mostram o peso real no mês) e todas guardam a `dataCompra`, usada no cálculo da fatura com a regra de fechamento do enunciado: `calcularFatura(dataCompra, cartao, parcelaAtual)`. A sobra dos centavos vai para a primeira parcela.
 
-**Recorrência mensal (além do enunciado).** Para assinaturas e contas fixas: o valor cheio se repete todo mês, do mês da data até o mês final escolhido (máx. 60 meses). Cada mês é um lançamento com a própria data e o mesmo `grupoRecorrencia`, então entra sozinho nas faturas, nos relatórios e na projeção. Dá para mudar o valor dali para frente e encerrar a qualquer momento: os meses anteriores ficam.
+**Recorrência mensal (além do enunciado).** Para assinaturas e contas fixas: o valor cheio se repete todo mês, do mês da data até o mês final escolhido (máx. 60 meses). Cada mês é um lançamento com a própria data e o mesmo `grupoRecorrencia`, então entra sozinho nas faturas, nos relatórios e na projeção. Dá para mudar o valor dali para frente ("aplicar aos meses seguintes") e encerrar a qualquer momento: os meses anteriores ficam. Mensalidades futuras não ocupam limite do cartão até serem cobradas, diferente de parcelas, que ocupam o limite desde a compra.
 
 **Regras de fonte/destino.** Entrada vem de uma renda ou conta; saída sai de uma conta ou cartão. Só saídas no cartão podem ser parceladas. Não é possível mudar o tipo de uma categoria ou fonte que já tem lançamentos.
 
 **Limite do cartão.** O limite utilizado soma tudo o que já foi comprado e cuja fatura ainda não venceu (inclusive a fatura fechada aguardando pagamento). Parcelas futuras de uma compra entram; mensalidades futuras de uma recorrência não, até serem cobradas.
 
 **Segurança.** Senha com bcrypt (custo 10); o hash nunca sai da API. Login com mensagem genérica e tempo igual para e-mail inexistente. Rate limit no login. CORS restrito à origem do front. Toda entrada é validada e limpa no servidor. O id do usuário vem sempre do token, e registros de outro usuário respondem 404.
+
+**Front-end.** `AuthContext` guarda token e usuário (o token sobrevive ao recarregar, via `localStorage`). `services/api.js` é o único ponto de acesso à API: injeta o token e, ao receber 401, faz logout e volta ao login. A sessão também expira sozinha no horário de expiração do token. Todas as telas tratam carregando, lista vazia e erro, e o layout se adapta ao celular (lançamentos viram cartões e os formulários abrem de baixo para cima).
 
 ## Saúde financeira — como as dicas são geradas
 
@@ -139,4 +146,4 @@ Os cálculos ficam em `backend/src/models/saude.js` e usam os 3 meses fechados a
 | Reserva de emergência | saldo das contas marcadas como reserva ÷ gasto médio mensal | atenção abaixo de 3 meses; positiva de 3 em diante |
 | Projeção de saldo (6 meses) | saldo atual + (renda média − gastos à vista médios − parcelas já lançadas no mês) | alerta se ficar negativo |
 
-A resposta da rota traz o aviso de que as informações são educativas e não constituem recomendação financeira profissional.
+A página avisa, em texto visível, que as informações são educativas e não constituem recomendação financeira profissional.
