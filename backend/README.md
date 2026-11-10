@@ -33,7 +33,4 @@ database/           seed de demonstração e, depois, os scripts do banco
 testes/             testes da API (node:test)
 ```
 
-Tudo que depende do banco está marcado com `// BD:` nos models e em `config/db.js`.
-A especificação completa está em `docs/BANCO-DE-DADOS.md` (na raiz do repositório).
-
 Lista de rotas, decisões de projeto e regras da saúde financeira: `README.md` da raiz.
