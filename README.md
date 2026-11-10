@@ -27,13 +27,11 @@ Projeto_2-_Full-Stack_de_Controle_Financeiro/
 |---|---|
 | Back-end | Node.js 20+, Express 5, jsonwebtoken, bcrypt, cors, dotenv, express-rate-limit |
 | Front-end | React 18, Vite 6, React Router 6, Axios, Recharts |
-| Banco | _a definir pelo grupo_ (ver `docs/BANCO-DE-DADOS.md`) |
+| Banco | _a definir pelo grupo_ |
 
 ## Como rodar
 
 Pré-requisito: Node.js 20 ou superior.
-
-**Atalho no Windows:** dois cliques em `iniciar.bat` na raiz do projeto. Ele instala as dependências na primeira vez, cria os `.env`, sobe a API e o front em duas janelas e abre o navegador.
 
 ### 1. Back-end
 
