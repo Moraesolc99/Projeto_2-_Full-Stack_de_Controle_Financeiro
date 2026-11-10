@@ -8,7 +8,6 @@ import { config } from './env.js';
  * (ex.: new pg.Pool({ connectionString: config.databaseUrl })) e exportado
  * junto com uma função transacao(fn) que faça BEGIN / COMMIT / ROLLBACK.
  * Os models passam a usar o pool no lugar de `memoria`.
- * Detalhes em docs/BANCO-DE-DADOS.md.
  */
 
 export const modoBanco = config.modoBanco;
@@ -42,7 +41,7 @@ export function violacaoChaveEstrangeira(nomeRestricao) {
   return erro;
 }
 
-// Tudo ou nada: se algo falhar no meio, os dados voltam ao estado anterior.
+// se algo falhar no meio, os dados voltam ao estado anterior.
 export async function transacao(fn) {
   const copiaDados = structuredClone(memoria);
   const copiaSeq = { ...sequencias };
