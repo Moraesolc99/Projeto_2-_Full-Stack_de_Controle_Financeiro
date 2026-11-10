@@ -15,7 +15,7 @@ Aplicação full stack de controle financeiro: API REST em **Node.js + Express**
 ▶️ **Vídeo no YouTube:** [assistir à apresentação](COLE_AQUI_O_LINK_DO_YOUTUBE)
 
 ```
-projeto2-financas/
+Projeto_2-_Full-Stack_de_Controle_Financeiro/
 ├── backend/     API REST (Express, JWT, bcrypt)
 ├── frontend/    SPA React (React Router, Axios, Recharts)
 └── docs/        BANCO-DE-DADOS.md — especificação do banco
