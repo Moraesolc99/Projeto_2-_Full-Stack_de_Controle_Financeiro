@@ -6,8 +6,8 @@ Aplicação full stack de controle financeiro. Esta etapa entrega a **API REST**
 
 | Nome | RA | Responsável por |
 |---|---|---|
-| OCTAVIO LUIS CONEJO DE MORAES | 2268108 | Back-end (API) |
-| YURI GARCIA YOSHIDA | 1835807 | Front-end (SPA React) |
+| OCTAVIO LUIS CONEJO DE MORAES | 2268108 | Front-end  (SPA React) |
+| YURI GARCIA YOSHIDA | 1835807 |  Back-end (API) |
 | GLEISSON SANTOS VIEIRA | 2525798 | Banco de Dados |
 
 ## Apresentação
