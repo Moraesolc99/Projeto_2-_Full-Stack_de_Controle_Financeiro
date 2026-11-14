@@ -1,5 +1,3 @@
-// Regras de negócio puras (sem acesso a banco). Usadas pelas rotas e pelos models.
-
 export function cpfValido(cpf) {
   const d = String(cpf ?? '').replace(/\D/g, '');
   if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false;
@@ -16,8 +14,6 @@ export const emailValido = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(Strin
 
 export const senhaValida = (senha) =>
   typeof senha === 'string' && senha.length >= 8 && /[A-Za-z]/.test(senha) && /\d/.test(senha);
-
-// ---------- dinheiro (sempre em centavos para não errar arredondamento) ----------
 
 export const paraCentavos = (valor) => Math.round(Number(valor) * 100);
 export const deCentavos = (centavos) => Math.round(centavos) / 100;
@@ -37,8 +33,6 @@ export function percentual(parte, todo) {
   if (!todo) return 0;
   return Math.round((parte / todo) * 10000) / 100;
 }
-
-// ---------- datas (strings AAAA-MM-DD, calculadas em UTC) ----------
 
 export function hoje() {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo' }).format(new Date());
@@ -87,8 +81,6 @@ export function mesCorrente() {
   return { inicio: inicioDoMes(h), fim: fimDoMes(h) };
 }
 
-// Mesmo tamanho do período informado, imediatamente antes dele.
-// Se o período for de meses inteiros, volta a mesma quantidade de meses (out → set).
 export function periodoAnterior(inicio, fim) {
   const mesesInteiros = inicio.endsWith('-01') && fim === fimDoMes(fim);
   if (mesesInteiros) {
@@ -103,10 +95,6 @@ export function periodoAnterior(inicio, fim) {
   return { inicio: somarDias(novoFim, -(dias - 1)), fim: novoFim };
 }
 
-// ---------- faturas de cartão ----------
-
-// Regra do enunciado: compra antes do dia de fechamento entra na fatura que fecha no mesmo mês;
-// no dia do fechamento ou depois, na do mês seguinte. A parcela k cai k-1 meses depois.
 export function calcularFatura(dataCompra, cartao, numeroParcela = 1) {
   const [ano, mes, dia] = dataCompra.split('-').map(Number);
   const m = mes - 1;
@@ -137,16 +125,12 @@ function somarMesesReferencia(referencia, meses) {
   return somarMeses(`${referencia}-01`, meses).slice(0, 7);
 }
 
-// Monta a fatura aberta + as próximas `meses` faturas de um cartão.
-// `lancamentos` são as saídas do cartão; cada uma guarda a data da compra e o número da parcela.
-// Limite utilizado = tudo que já foi comprado e cuja fatura ainda não venceu.
 export function montarFaturas(cartao, lancamentos, meses = 3, dataBase = hoje()) {
   const porReferencia = new Map();
   let comprometidoCentavos = 0;
 
   for (const l of lancamentos) {
     const fatura = calcularFatura(l.dataCompra, cartao, l.parcelaAtual);
-    // Mensalidade futura ainda não foi cobrada, então não ocupa limite. Parcela futura ocupa.
     const cobrancaFutura = l.grupoRecorrencia && l.dataCompra > dataBase;
     if (fatura.vencimento >= dataBase && !cobrancaFutura) comprometidoCentavos += paraCentavos(l.valor);
     if (!porReferencia.has(fatura.referencia)) porReferencia.set(fatura.referencia, []);
@@ -156,7 +140,6 @@ export function montarFaturas(cartao, lancamentos, meses = 3, dataBase = hoje())
   const aberta = calcularFatura(dataBase, cartao).referencia;
   const referencias = [];
 
-  // Fatura já fechada que ainda não venceu (aguardando pagamento)
   const anterior = somarMesesReferencia(aberta, -1);
   if (datasDaReferencia(anterior, cartao).vencimento >= dataBase && porReferencia.has(anterior)) {
     referencias.push({ ref: anterior, situacao: 'fechada' });

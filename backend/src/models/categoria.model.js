@@ -23,8 +23,6 @@ function verificarNomeUnico(usuarioId, nome, tipo, ignorarId) {
 }
 
 export async function listar(usuarioId, tipo) {
-  // BD: SELECT id, nome, tipo, classificacao FROM categorias
-  //     WHERE usuario_id = $1 [AND tipo = $2] ORDER BY tipo, nome
   return memoria.categorias
     .filter((c) => c.usuarioId === usuarioId && (!tipo || c.tipo === tipo))
     .sort((a, b) => a.tipo.localeCompare(b.tipo) || a.nome.localeCompare(b.nome, 'pt-BR'))
@@ -32,13 +30,11 @@ export async function listar(usuarioId, tipo) {
 }
 
 export async function buscar(usuarioId, id) {
-  // BD: SELECT ... FROM categorias WHERE id = $1 AND usuario_id = $2
   const categoria = memoria.categorias.find((c) => c.id === id && c.usuarioId === usuarioId);
   return categoria ? { ...categoria } : null;
 }
 
 export async function criar(usuarioId, { nome, tipo, classificacao }) {
-  // BD: INSERT INTO categorias (usuario_id, nome, tipo, classificacao) VALUES ($1, $2, $3, $4) RETURNING *
   verificarNomeUnico(usuarioId, nome, tipo);
   const categoria = { id: proximoId('categorias'), usuarioId, nome, tipo, classificacao: classificacao ?? null };
   memoria.categorias.push(categoria);
@@ -46,13 +42,10 @@ export async function criar(usuarioId, { nome, tipo, classificacao }) {
 }
 
 export async function criarPadrao(usuarioId) {
-  // BD: um único INSERT com vários VALUES, dentro da mesma transação do cadastro do usuário.
   for (const c of PADRAO) await criar(usuarioId, c);
 }
 
 export async function atualizar(usuarioId, id, { nome, tipo, classificacao }) {
-  // BD: UPDATE categorias SET nome = $1, tipo = $2, classificacao = $3
-  //     WHERE id = $4 AND usuario_id = $5 RETURNING *
   const categoria = memoria.categorias.find((c) => c.id === id && c.usuarioId === usuarioId);
   if (!categoria) return null;
   verificarNomeUnico(usuarioId, nome, tipo, id);
@@ -61,13 +54,10 @@ export async function atualizar(usuarioId, id, { nome, tipo, classificacao }) {
 }
 
 export async function contarLancamentos(usuarioId, id) {
-  // BD: SELECT COUNT(*) FROM lancamentos WHERE categoria_id = $1 AND usuario_id = $2
   return memoria.lancamentos.filter((l) => l.categoriaId === id && l.usuarioId === usuarioId).length;
 }
 
 export async function excluir(usuarioId, id) {
-  // BD: DELETE FROM categorias WHERE id = $1 AND usuario_id = $2
-  //     A FK de lancamentos.categoria_id (sem CASCADE) impede apagar categoria em uso.
   const indice = memoria.categorias.findIndex((c) => c.id === id && c.usuarioId === usuarioId);
   if (indice === -1) return false;
   if (memoria.lancamentos.some((l) => l.categoriaId === id)) throw violacaoChaveEstrangeira('lancamentos_categoria_id_fkey');

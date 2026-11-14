@@ -7,7 +7,6 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'troque-este-segredo')
   if (modoBanco === 'banco') {
     throw new Error('Defina um JWT_SECRET de verdade no .env antes de usar o banco.');
   }
-  // Segredo novo a cada start: como os dados em memória também somem, tokens antigos não podem continuar valendo.
   console.warn('[aviso] JWT_SECRET não definido; usando um segredo temporário (quem estava logado precisa entrar de novo).');
 }
 

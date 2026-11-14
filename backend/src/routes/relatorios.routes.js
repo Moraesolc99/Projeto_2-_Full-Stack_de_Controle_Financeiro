@@ -24,7 +24,6 @@ router.get('/categorias', validarPeriodo, async (req, res) => {
   const totalSaidas = somar(saidas.map((c) => c.total));
   const totalEntradas = somar(entradas.map((c) => c.total));
 
-  // Junta período atual e anterior; categoria que só existiu antes aparece com total zero.
   function comparar(atual, antes, total) {
     const ids = new Set([...atual.map((c) => c.id), ...antes.map((c) => c.id)]);
     return [...ids].map((id) => {

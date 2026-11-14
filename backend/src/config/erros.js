@@ -10,14 +10,12 @@ export const dadosInvalidos = (campos, mensagem = 'Dados inválidos.') => new Er
 export const naoEncontrado = (mensagem = 'Registro não encontrado.') => new ErroApi(404, mensagem);
 export const conflito = (mensagem, campos) => new ErroApi(409, mensagem, campos);
 
-// Devolve o nome da restrição UNIQUE violada, venha o erro de qual banco vier.
-// Assim as rotas não precisam saber qual SGBD está por trás.
 export function restricaoUnicaViolada(erro) {
   if (!erro) return null;
   if (erro.code === 'UNIQUE_MEMORIA') return erro.constraint;
-  if (erro.code === '23505') return erro.constraint ?? '';            // PostgreSQL
-  if (erro.code === 'ER_DUP_ENTRY') return erro.sqlMessage ?? '';      // MySQL
-  if (erro.code === 11000) return Object.keys(erro.keyPattern ?? {}).join('_'); // MongoDB
+  if (erro.code === '23505') return erro.constraint ?? '';
+  if (erro.code === 'ER_DUP_ENTRY') return erro.sqlMessage ?? '';
+  if (erro.code === 11000) return Object.keys(erro.keyPattern ?? {}).join('_');
   return null;
 }
 

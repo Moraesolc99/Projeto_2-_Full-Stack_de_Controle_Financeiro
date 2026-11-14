@@ -6,7 +6,6 @@ import {
   percentual, somar, paraCentavos, deCentavos,
 } from './regras.js';
 
-// Limites usados para gerar as dicas. Estão documentados no README.
 export const LIMITES = {
   poupancaMinima: 10,
   poupancaBoa: 20,
@@ -50,7 +49,6 @@ export async function analisar(usuarioId) {
   const saidaMedia = media(historico.map((m) => m.saidas));
   const dicas = [];
 
-  // 1. Taxa de poupança
   const taxaPorMes = historico.map((m) => ({
     mes: m.mes,
     taxa: m.entradas > 0 ? percentual(m.entradas - m.saidas, m.entradas) : null,
@@ -66,7 +64,6 @@ export async function analisar(usuarioId) {
     dicas.push({ nivel: 'positivo', texto: `Você guardou ${pct(ultimo.taxa)} da sua renda em ${nomeMes(ultimo.mes)}.${ultimo.taxa >= LIMITES.poupancaBoa ? ' Ótimo ritmo.' : ''}` });
   }
 
-  // 2 e 3. Cartões: comprometimento das próximas faturas e parcelas futuras
   const cartoes = await FonteDestino.listar(usuarioId, 'cartao_credito');
   let proximasFaturas = 0;
   const parcelasPorMes = new Map();
@@ -96,7 +93,6 @@ export async function analisar(usuarioId) {
     dicas.push({ nivel: 'info', texto: `Você tem ${brl(totalParcelas)} em parcelas até ${nomeMes(parcelasFuturas.at(-1).mes)}.` });
   }
 
-  // 4. Regra 50/30/20 (sobre a renda dos últimos 3 meses)
   const saidasClassificadas = await Relatorio.somarPorCategoria(usuarioId, 'saida', inicioHistorico, fimHistorico);
   const rendaTotal = somar(historico.map((m) => m.entradas));
   const porClasse = { necessidade: 0, desejo: 0, poupanca: 0 };
@@ -121,7 +117,6 @@ export async function analisar(usuarioId) {
     }
   }
 
-  // 5. Categoria fora da curva: mês atual x média dos 3 anteriores
   const atual = await Relatorio.somarPorCategoria(usuarioId, 'saida', inicioMesAtual, dataHoje);
   const foraDaCurva = [];
   for (const c of atual) {
@@ -135,7 +130,6 @@ export async function analisar(usuarioId) {
     }
   }
 
-  // 6. Reserva de emergência
   const reservas = (await FonteDestino.listar(usuarioId, 'conta')).filter((f) => f.reserva);
   const saldoReserva = reservas.length ? await Relatorio.saldoAcumulado(usuarioId, reservas.map((r) => r.id), dataHoje) : 0;
   const mesesCobertos = saidaMedia > 0 ? Math.round((saldoReserva / saidaMedia) * 10) / 10 : null;
@@ -146,7 +140,6 @@ export async function analisar(usuarioId) {
     dicas.push({ nivel, texto: `Sua reserva cobre ${mesesCobertos.toLocaleString('pt-BR')} ${mesesCobertos === 1 ? 'mês' : 'meses'} de despesas. Uma referência comum é de ${LIMITES.reservaMinimaMeses} a ${LIMITES.reservaIdealMeses} meses.` });
   }
 
-  // 7. Projeção de saldo: média das entradas e dos gastos à vista + parcelas já lançadas
   const saldoAtual = await Relatorio.saldoAcumulado(
     usuarioId,
     (await FonteDestino.listar(usuarioId)).map((f) => f.id),

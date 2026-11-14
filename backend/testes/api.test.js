@@ -1,11 +1,8 @@
-// Testes de ponta a ponta da API. Sobem o servidor numa porta separada e batem nas rotas de verdade.
-// Rodar com: npm test
-
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import jwt from 'jsonwebtoken';
-import { calcularFatura, hoje } from '../src/models/regras.js';
+import { calcularFatura, hoje, inicioDoMes, somarDias, somarMeses } from '../src/models/regras.js';
 
 const PORTA = 3999;
 const SEGREDO_TESTE = 'segredo-so-para-os-testes';
@@ -180,7 +177,6 @@ test('parcelamento: R$ 100 em 3x soma exatamente 100 e cai nas faturas certas', 
   const faturas = (await chamar('GET', '/relatorios/faturas?meses=3', { token })).dados;
   const doCartao = faturas.cartoes.find((c) => c.cartao.id === cartao.id);
   const referencias = doCartao.faturas.filter((f) => f.itens.length).map((f) => f.referencia);
-  // compra no dia do fechamento (03/11) vai para a fatura de dezembro
   assert.deepEqual(referencias, ['2026-12', '2027-01', '2027-02']);
   assert.equal(doCartao.limiteUtilizado, 100);
   assert.equal(doCartao.limiteDisponivel, 900);
@@ -240,45 +236,48 @@ test('recorrência mensal: valor cheio todo mês, editar os seguintes e encerrar
     corpo: { nome: 'Cartão Recorrência', tipo: 'cartao_credito', diaFechamento: 3, diaVencimento: 10, limite: 1000 },
   })).dados;
   const base = { tipo: 'saida', descricao: 'Música', valor: 21.9, categoriaId: lazer.id, fonteDestinoId: cartao.id };
+  const regrasCartao = { diaFechamento: 3, diaVencimento: 10 };
+  const datas = [0, 1, 2, 3].map((m) => somarMeses(somarDias(inicioDoMes(hoje()), 14), m));
+  const mesInicial = datas[0].slice(0, 7);
+  const mesFinal = datas[3].slice(0, 7);
 
-  const comParcelas = await chamar('POST', '/lancamentos', { token, corpo: { ...base, data: '2026-10-15', parcelas: 3, recorrente: true, repetirAte: '2027-01' } });
+  const comParcelas = await chamar('POST', '/lancamentos', { token, corpo: { ...base, data: datas[0], parcelas: 3, recorrente: true, repetirAte: mesFinal } });
   assert.equal(comParcelas.status, 400);
-  const semFim = await chamar('POST', '/lancamentos', { token, corpo: { ...base, data: '2026-10-15', recorrente: true } });
+  const semFim = await chamar('POST', '/lancamentos', { token, corpo: { ...base, data: datas[0], recorrente: true } });
   assert.equal(semFim.status, 400);
   assert.ok(semFim.dados.campos.repetirAte);
-  const mesmoMes = await chamar('POST', '/lancamentos', { token, corpo: { ...base, data: '2026-10-15', recorrente: true, repetirAte: '2026-10' } });
+  const mesmoMes = await chamar('POST', '/lancamentos', { token, corpo: { ...base, data: datas[0], recorrente: true, repetirAte: mesInicial } });
   assert.equal(mesmoMes.status, 400);
 
   const { status, dados } = await chamar('POST', '/lancamentos', {
-    token, corpo: { ...base, data: '2026-10-15', recorrente: true, repetirAte: '2027-01' },
+    token, corpo: { ...base, data: datas[0], recorrente: true, repetirAte: mesFinal },
   });
   assert.equal(status, 201);
   const criados = dados.lancamentos;
-  assert.deepEqual(criados.map((l) => l.data), ['2026-10-15', '2026-11-15', '2026-12-15', '2027-01-15']);
+  assert.deepEqual(criados.map((l) => l.data), datas);
   assert.ok(criados.every((l) => l.valor === 21.9 && l.totalParcelas === 1 && l.grupoRecorrencia === criados[0].grupoRecorrencia));
 
-  // Cada mês cai numa fatura; só o que já foi cobrado ocupa limite.
   const faturas = (await chamar('GET', '/relatorios/faturas?meses=3', { token })).dados.cartoes.find((c) => c.cartao.id === cartao.id);
+  const janela = faturas.faturas.map((f) => f.referencia);
+  const esperadas = criados.map((l) => calcularFatura(l.data, regrasCartao).referencia).filter((r) => janela.includes(r));
+  assert.ok(esperadas.length >= 3);
   const comItens = faturas.faturas.filter((f) => f.itens.length).map((f) => f.referencia);
-  assert.deepEqual(comItens, ['2026-11', '2026-12', '2027-01', '2027-02']);
+  assert.deepEqual(comItens, esperadas);
   assert.ok(faturas.faturas.flatMap((f) => f.itens).every((i) => i.recorrente));
-  // Ocupa limite só o que já foi comprado (data <= hoje) e cuja fatura ainda não venceu.
   const hojeIso = hoje();
   const cobradas = criados.filter((l) => l.data <= hojeIso
-    && calcularFatura(l.data, { diaFechamento: 3, diaVencimento: 10 }).vencimento >= hojeIso);
+    && calcularFatura(l.data, regrasCartao).vencimento >= hojeIso);
   assert.equal(faturas.limiteUtilizado, Math.round(cobradas.length * 2190) / 100);
 
-  // A assinatura ficou mais cara a partir de dezembro
-  const dezembro = criados[2];
-  const editado = await chamar('PUT', `/lancamentos/${dezembro.id}?aplicarSeguintes=true`, {
-    token, corpo: { ...base, valor: 24.9, data: dezembro.data },
+  const terceiro = criados[2];
+  const editado = await chamar('PUT', `/lancamentos/${terceiro.id}?aplicarSeguintes=true`, {
+    token, corpo: { ...base, valor: 24.9, data: terceiro.data },
   });
   assert.equal(editado.status, 200);
   const valores = await Promise.all(criados.map(async (l) => (await chamar('GET', `/lancamentos/${l.id}`, { token })).dados.valor));
   assert.deepEqual(valores, [21.9, 21.9, 24.9, 24.9]);
 
-  // Encerrar a partir de dezembro: outubro e novembro ficam
-  assert.equal((await chamar('DELETE', `/lancamentos/${dezembro.id}?recorrencia=seguintes`, { token })).status, 204);
+  assert.equal((await chamar('DELETE', `/lancamentos/${terceiro.id}?recorrencia=seguintes`, { token })).status, 204);
   const restantes = await Promise.all(criados.map(async (l) => (await chamar('GET', `/lancamentos/${l.id}`, { token })).status));
   assert.deepEqual(restantes, [200, 200, 404, 404]);
 

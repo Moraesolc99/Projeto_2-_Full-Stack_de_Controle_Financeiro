@@ -1,8 +1,3 @@
-// Dados de demonstração para o modo memória (MODO_BANCO=memoria).
-// São recriados a cada vez que a API sobe, sempre relativos à data de hoje:
-// 3 meses fechados + o mês corrente, 2 usuários e compras parceladas em cartões.
-// BD: o seed do banco real (database/seed.sql ou similar) deve trazer dados equivalentes.
-
 import bcrypt from 'bcrypt';
 import * as Usuario from '../src/models/usuario.model.js';
 import * as Categoria from '../src/models/categoria.model.js';
@@ -37,7 +32,6 @@ async function prepararUsuario({ nome, email, cpf, senha }, extras) {
     await Lancamento.criar(usuario.id, base, lista);
   }
 
-  // Valor cheio todo mês, da data até o mês final (AAAA-MM).
   lancar.mensal = async (tipo, descricao, valor, data, ate, categoria, fonteDestino) => {
     const base = { tipo, descricao, valor, data, categoriaId: cat(categoria), fonteDestinoId: fonte(fonteDestino) };
     const lista = [];
@@ -81,14 +75,11 @@ export async function carregarDemonstracao() {
   await ana('entrada', 'Ajuste de layout', 650, dia(1, 19), 'Outras entradas', 'Freelance');
   await ana('saida', 'Consulta dentista', 280, dia(2, 9), 'Saúde', 'Visa crédito');
 
-  // Compras parceladas para demonstrar as faturas
   await ana('saida', 'Notebook', 4800, dia(2, 15), 'Educação', 'Nubank', 10);
   await ana('saida', 'Geladeira', 2400, dia(1, 26), 'Moradia', 'Visa crédito', 6);
   await ana('saida', 'Tênis de corrida', 360, dia(0, 3), 'Lazer', 'Nubank', 3);
-  // Assinaturas mensais no cartão (recorrência com mês final)
   await ana.mensal('saida', 'Streaming de filmes', 39.9, dia(3, 12), somarMeses(mesAtual, 8).slice(0, 7), 'Lazer', 'Nubank');
   await ana.mensal('saida', 'Academia', 119.9, dia(2, 4), somarMeses(mesAtual, 3).slice(0, 7), 'Saúde', 'Visa crédito');
-  // Mês corrente com gasto de mercado acima da média (aparece na saúde financeira)
   await ana('saida', 'Churrasco de aniversário', 540, dia(0, 2), 'Alimentação', 'Conta corrente');
 
   const bruno = await prepararUsuario(

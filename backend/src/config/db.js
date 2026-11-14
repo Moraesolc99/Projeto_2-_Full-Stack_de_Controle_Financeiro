@@ -1,14 +1,5 @@
 import { config } from './env.js';
 
-/*
- * BD: este arquivo é o ponto de conexão com o banco.
- *
- * Hoje ele expõe um armazenamento em memória para o projeto rodar sem banco.
- * Quando o banco estiver pronto, aqui deve ser criado o pool de conexões
- * (ex.: new pg.Pool({ connectionString: config.databaseUrl })) e exportado
- * junto com uma função transacao(fn) que faça BEGIN / COMMIT / ROLLBACK.
- * Os models passam a usar o pool no lugar de `memoria`.
- */
 
 export const modoBanco = config.modoBanco;
 
@@ -26,7 +17,6 @@ export function proximoId(tabela) {
   return sequencias[tabela];
 }
 
-// Imita o erro que o banco lança quando uma restrição UNIQUE é violada.
 export function violacaoUnica(nomeRestricao) {
   const erro = new Error(`Violação de unicidade: ${nomeRestricao}`);
   erro.code = 'UNIQUE_MEMORIA';
@@ -41,7 +31,6 @@ export function violacaoChaveEstrangeira(nomeRestricao) {
   return erro;
 }
 
-// se algo falhar no meio, os dados voltam ao estado anterior.
 export async function transacao(fn) {
   const copiaDados = structuredClone(memoria);
   const copiaSeq = { ...sequencias };
@@ -56,6 +45,5 @@ export async function transacao(fn) {
 
 export async function conectar() {
   if (modoBanco === 'memoria') return;
-  // BD: abrir o pool e testar a conexão (ex.: await pool.query('SELECT 1')).
   throw new Error('MODO_BANCO=banco, mas a conexão ainda não foi implementada em src/config/db.js.');
 }

@@ -13,12 +13,10 @@ import {
 
 const router = Router();
 
-// Entrada vem de renda ou conta; saída sai de conta ou cartão.
 const FONTES_PERMITIDAS = { entrada: ['renda', 'conta'], saida: ['conta', 'cartao_credito'] };
 
 const semDono = ({ usuarioId, ...resto }) => resto;
 
-// Confere posse e compatibilidade da categoria e da fonte/destino.
 async function conferirRelacionamentos(usuarioId, dados) {
   const [categoria, fonte] = await Promise.all([
     Categoria.buscar(usuarioId, dados.categoriaId),
@@ -68,8 +66,6 @@ router.post('/', validarLancamento, async (req, res) => {
   const dados = req.dados;
   await conferirRelacionamentos(req.usuarioId, dados);
 
-  // Parcelado: o valor é dividido e cada parcela cai um mês depois da anterior.
-  // Recorrente: o valor cheio se repete todo mês até o mês final.
   const recorrente = Boolean(dados.recorrencia);
   const ocorrencias = recorrente
     ? Array.from({ length: dados.recorrencia.meses }, (_, i) => ({ valor: dados.valor, data: somarMeses(dados.data, i) }))
@@ -93,7 +89,6 @@ router.put('/:id', validarId, validarLancamento, async (req, res) => {
   const parcelado = atual.totalParcelas > 1;
 
   if (parcelado) {
-    // Numa parcela só dá para mudar descrição, categoria e valor. Data e cartão são da compra inteira.
     const campos = {};
     if (dados.tipo !== atual.tipo) campos.tipo = 'Não é possível mudar o tipo de uma compra parcelada.';
     if (dados.fonteDestinoId !== atual.fonteDestinoId) campos.fonteDestinoId = 'Para trocar o cartão, exclua a compra e lance de novo.';
@@ -112,7 +107,6 @@ router.put('/:id', validarId, validarLancamento, async (req, res) => {
   };
   if (!parcelado) Object.assign(alteracoes, { data: dados.data, dataCompra: dados.data });
 
-  // Numa recorrência, dá para levar a mudança aos meses seguintes (ex.: a assinatura ficou mais cara).
   const aplicarSeguintes = req.query.aplicarSeguintes === 'true' && atual.grupoRecorrencia;
 
   const atualizado = await transacao(async () => {
@@ -133,7 +127,6 @@ router.delete('/:id', validarId, async (req, res) => {
   if (req.query.todasParcelas === 'true' && lancamento.grupoParcelamento) {
     await Lancamento.excluirGrupo(req.usuarioId, lancamento.grupoParcelamento);
   } else if (recorrencia === 'seguintes' && lancamento.grupoRecorrencia) {
-    // Encerrar: some este mês e os próximos, o histórico fica.
     await Lancamento.excluirRecorrencia(req.usuarioId, lancamento.grupoRecorrencia, lancamento.data);
   } else if (recorrencia === 'todas' && lancamento.grupoRecorrencia) {
     await Lancamento.excluirRecorrencia(req.usuarioId, lancamento.grupoRecorrencia);

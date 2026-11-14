@@ -6,7 +6,6 @@ const TIPOS_FONTE = ['renda', 'conta', 'cartao_credito'];
 const CLASSIFICACOES = ['necessidade', 'desejo', 'poupanca'];
 export const MAX_MESES_RECORRENCIA = 60;
 
-// Limpa texto vindo do cliente: tira tags, caracteres de controle e espaços sobrando.
 function texto(valor) {
   if (typeof valor !== 'string') return '';
   return valor
@@ -16,7 +15,6 @@ function texto(valor) {
     .trim();
 }
 
-// Ids numéricos (SQL) ou ObjectId (MongoDB). Qualquer outra coisa é inválida.
 export function lerId(valor) {
   const v = String(valor ?? '').trim();
   if (/^\d{1,10}$/.test(v) && Number(v) > 0) return Number(v);
@@ -152,7 +150,6 @@ export function validarLancamento(req, res, next) {
   if (parcelas === null || parcelas < 1 || parcelas > 48) campos.parcelas = 'Número de parcelas entre 1 e 48.';
   else if (valor && parcelas > 1 && Math.round(valor * 100) < parcelas) campos.parcelas = 'Cada parcela precisa ter pelo menos R$ 0,01.';
 
-  // Recorrência mensal: repete o valor cheio todo mês até o mês informado (AAAA-MM).
   let meses = 1;
   const recorrente = corpo.recorrente === true;
   if (recorrente) {
@@ -182,7 +179,6 @@ export function validarLancamento(req, res, next) {
   return next();
 }
 
-// inicio/fim na query string; sem nada, vale o mês corrente.
 export function validarPeriodo(req, res, next) {
   const padrao = mesCorrente();
   const inicio = req.query.inicio || padrao.inicio;

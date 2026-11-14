@@ -20,7 +20,6 @@ const limiteLogin = rateLimit({
   message: { erro: 'Muitas tentativas de login. Tente de novo em alguns minutos.' },
 });
 
-// Hash qualquer, só para o login demorar o mesmo tempo quando o e-mail não existe.
 const HASH_FALSO = bcrypt.hashSync('nao-existe-123', 10);
 
 const mensagemDuplicado = {
@@ -49,7 +48,6 @@ router.post('/cadastro', validarCadastro, async (req, res) => {
     });
     return res.status(201).json({ id: usuario.id, nome: usuario.nome, email: usuario.email });
   } catch (erro) {
-    // A verificação lá em cima pode perder uma corrida; quem decide de verdade é o UNIQUE do banco.
     const restricao = restricaoUnicaViolada(erro);
     if (restricao !== null) {
       const campo = restricao.includes('cpf') ? 'cpf' : 'email';
