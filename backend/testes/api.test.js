@@ -1,13 +1,41 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import jwt from 'jsonwebtoken';
+import pg from 'pg';
 import { calcularFatura, hoje, inicioDoMes, somarDias, somarMeses } from '../src/models/regras.js';
 
 const PORTA = 3999;
 const SEGREDO_TESTE = 'segredo-so-para-os-testes';
 const URL_BASE = `http://localhost:${PORTA}/api`;
 let servidor;
+
+// Os testes rodam num banco próprio (<nome>_teste), recriado do zero a cada execução:
+// assim nunca apagam nem sujam os dados de desenvolvimento.
+function urlDoBancoDeTeste() {
+  if (process.env.DATABASE_URL_TESTE) return process.env.DATABASE_URL_TESTE;
+  if (!process.env.DATABASE_URL) throw new Error('Defina DATABASE_URL (ou DATABASE_URL_TESTE) para rodar os testes.');
+  const url = new URL(process.env.DATABASE_URL);
+  url.pathname = `${url.pathname}_teste`;
+  return url.toString();
+}
+
+async function prepararBancoDeTeste(urlTeste) {
+  const nome = new URL(urlTeste).pathname.slice(1);
+  const admin = new URL(urlTeste);
+  admin.pathname = '/postgres';
+  const cliente = new pg.Client({ connectionString: admin.toString() });
+  await cliente.connect();
+  try {
+    const { rowCount } = await cliente.query('SELECT 1 FROM pg_database WHERE datname = $1', [nome]);
+    if (!rowCount) await cliente.query(`CREATE DATABASE "${nome.replace(/"/g, '')}"`);
+  } finally {
+    await cliente.end();
+  }
+  const env = { ...process.env, DATABASE_URL: urlTeste };
+  execFileSync(process.execPath, ['database/aplicar-schema.js'], { env, stdio: 'inherit' });
+  execFileSync(process.execPath, ['database/seed.js', '--reset'], { env, stdio: 'inherit' });
+}
 
 async function chamar(metodo, caminho, { token, corpo } = {}) {
   const resposta = await fetch(URL_BASE + caminho, {
@@ -28,8 +56,10 @@ async function entrar(email, senha = 'senha1234') {
 }
 
 before(async () => {
+  const urlTeste = urlDoBancoDeTeste();
+  await prepararBancoDeTeste(urlTeste);
   servidor = spawn(process.execPath, ['src/server.js'], {
-    env: { ...process.env, PORT: String(PORTA), MODO_BANCO: 'memoria', LOGIN_MAX_TENTATIVAS: '1000', JWT_SECRET: SEGREDO_TESTE },
+    env: { ...process.env, DATABASE_URL: urlTeste, PORT: String(PORTA), LOGIN_MAX_TENTATIVAS: '1000', JWT_SECRET: SEGREDO_TESTE },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   await new Promise((resolve, reject) => {

@@ -1,9 +1,12 @@
-import { memoria, proximoId, violacaoUnica, violacaoChaveEstrangeira } from '../config/db.js';
+import { consulta } from '../config/db.js';
 
 export const PADRAO = [
   { nome: 'Conta corrente', tipo: 'conta' },
   { nome: 'Carteira', tipo: 'conta' },
 ];
+
+const COLUNAS = `id, usuario_id AS "usuarioId", nome, tipo,
+  dia_fechamento AS "diaFechamento", dia_vencimento AS "diaVencimento", limite, reserva`;
 
 function normalizar(dados) {
   const cartao = dados.tipo === 'cartao_credito';
@@ -17,56 +20,63 @@ function normalizar(dados) {
   };
 }
 
-function verificarNomeUnico(usuarioId, nome, ignorarId) {
-  const repetida = memoria.fontes_destinos.some(
-    (f) => f.usuarioId === usuarioId && f.id !== ignorarId && f.nome.toLowerCase() === nome.toLowerCase(),
-  );
-  if (repetida) throw violacaoUnica('fontes_destinos_usuario_id_nome_key');
-}
-
 export async function listar(usuarioId, tipo) {
-  return memoria.fontes_destinos
-    .filter((f) => f.usuarioId === usuarioId && (!tipo || f.tipo === tipo))
-    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
-    .map((f) => ({ ...f }));
+  const { rows } = await consulta(
+    `SELECT ${COLUNAS} FROM fontes_destinos
+      WHERE usuario_id = $1 AND ($2::text IS NULL OR tipo = $2)
+      ORDER BY nome`,
+    [usuarioId, tipo ?? null],
+  );
+  return rows;
 }
 
 export async function buscar(usuarioId, id) {
-  const fonte = memoria.fontes_destinos.find((f) => f.id === id && f.usuarioId === usuarioId);
-  return fonte ? { ...fonte } : null;
+  const { rows } = await consulta(
+    `SELECT ${COLUNAS} FROM fontes_destinos WHERE id = $1 AND usuario_id = $2`,
+    [id, usuarioId],
+  );
+  return rows[0] ?? null;
 }
 
 export async function criar(usuarioId, dados) {
-  const valores = normalizar(dados);
-  verificarNomeUnico(usuarioId, valores.nome);
-  const fonte = { id: proximoId('fontes_destinos'), usuarioId, ...valores };
-  memoria.fontes_destinos.push(fonte);
-  return { ...fonte };
+  const v = normalizar(dados);
+  const { rows } = await consulta(
+    `INSERT INTO fontes_destinos (usuario_id, nome, tipo, dia_fechamento, dia_vencimento, limite, reserva)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING ${COLUNAS}`,
+    [usuarioId, v.nome, v.tipo, v.diaFechamento, v.diaVencimento, v.limite, v.reserva],
+  );
+  return rows[0];
 }
 
 export async function criarPadrao(usuarioId) {
-  for (const f of PADRAO) await criar(usuarioId, f);
+  for (const fonte of PADRAO) await criar(usuarioId, fonte);
 }
 
 export async function atualizar(usuarioId, id, dados) {
-  const fonte = memoria.fontes_destinos.find((f) => f.id === id && f.usuarioId === usuarioId);
-  if (!fonte) return null;
-  const valores = normalizar(dados);
-  verificarNomeUnico(usuarioId, valores.nome, id);
-  Object.assign(fonte, valores);
-  return { ...fonte };
+  const v = normalizar(dados);
+  const { rows } = await consulta(
+    `UPDATE fontes_destinos
+        SET nome = $3, tipo = $4, dia_fechamento = $5, dia_vencimento = $6, limite = $7, reserva = $8
+      WHERE id = $1 AND usuario_id = $2
+      RETURNING ${COLUNAS}`,
+    [id, usuarioId, v.nome, v.tipo, v.diaFechamento, v.diaVencimento, v.limite, v.reserva],
+  );
+  return rows[0] ?? null;
 }
 
 export async function contarLancamentos(usuarioId, id) {
-  return memoria.lancamentos.filter((l) => l.fonteDestinoId === id && l.usuarioId === usuarioId).length;
+  const { rows } = await consulta(
+    'SELECT COUNT(*) AS total FROM lancamentos WHERE fonte_destino_id = $1 AND usuario_id = $2',
+    [id, usuarioId],
+  );
+  return rows[0].total;
 }
 
 export async function excluir(usuarioId, id) {
-  const indice = memoria.fontes_destinos.findIndex((f) => f.id === id && f.usuarioId === usuarioId);
-  if (indice === -1) return false;
-  if (memoria.lancamentos.some((l) => l.fonteDestinoId === id)) {
-    throw violacaoChaveEstrangeira('lancamentos_fonte_destino_id_fkey');
-  }
-  memoria.fontes_destinos.splice(indice, 1);
-  return true;
+  const { rowCount } = await consulta(
+    'DELETE FROM fontes_destinos WHERE id = $1 AND usuario_id = $2',
+    [id, usuarioId],
+  );
+  return rowCount > 0;
 }
