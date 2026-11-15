@@ -1,0 +1,64 @@
+# Sobe o projeto inteiro (banco + API + front) com um comando:
+#   docker compose up --build
+#
+#   Front-end : http://localhost:5173
+#   API       : http://localhost:3000/api/status
+#   PostgreSQL: localhost:5432  (usuário/senha/banco: financas)
+name: caderneta
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-financas}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-financas}
+      POSTGRES_DB: ${POSTGRES_DB:-financas}
+    ports:
+      # 127.0.0.1: acessível do seu computador (DBeaver, psql), mas não da rede.
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data   # os dados sobrevivem a "docker compose down"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy        # só inicia quando o Postgres já aceita conexões
+    environment:
+      PORT: 3000
+      FRONTEND_URL: http://localhost:5173
+      # "db" é o nome do serviço acima: dentro da rede do Docker ele funciona como hostname.
+      DATABASE_URL: postgres://${POSTGRES_USER:-financas}:${POSTGRES_PASSWORD:-financas}@db:5432/${POSTGRES_DB:-financas}
+      # Segredo de DESENVOLVIMENTO. Para outro ambiente, defina JWT_SECRET no arquivo .env da raiz.
+      JWT_SECRET: ${JWT_SECRET:-dev-segredo-troque-fora-do-desenvolvimento-7c1f9a}
+      JWT_EXPIRA_EM: ${JWT_EXPIRA_EM:-1h}
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      # O navegador (no seu computador) é quem chama a API, por isso localhost e não "backend".
+      VITE_API_URL: http://localhost:3000/api
+    ports:
+      - "5173:5173"
+
+volumes:
+  pgdata:

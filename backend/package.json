@@ -7,6 +7,10 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
+    "db:schema": "node database/aplicar-schema.js",
+    "seed": "node database/seed.js",
+    "seed:se-vazio": "node database/seed.js --se-vazio",
+    "seed:reset": "node database/seed.js --reset",
     "test": "node --test \"testes/**/*.test.js\""
   },
   "dependencies": {
@@ -15,7 +19,8 @@
     "dotenv": "^16.4.5",
     "express": "^5.3.0",
     "express-rate-limit": "^7.5.0",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.23.1"
   },
   "engines": {
     "node": ">=20"
