@@ -16,9 +16,11 @@ Aplicação full stack de controle financeiro: API REST em **Node.js + Express**
 
 ```
 Projeto_2-_Full-Stack_de_Controle_Financeiro/
-├── backend/     API REST (Express, JWT, bcrypt)
-├── frontend/    SPA React (React Router, Axios, Recharts)
-└── docs/        BANCO-DE-DADOS.md — especificação do banco
+├── docker-compose.yml   sobe banco + API + front com um comando
+├── backend/             API REST (Express, JWT, bcrypt, pg)
+│   └── database/        schema.sql, seed.js, aplicar-schema.js
+├── frontend/            SPA React (React Router, Axios, Recharts)
+└── docs/                BANCO-DE-DADOS.md — modelo e decisões do banco
 ```
 
 ## Tecnologias
@@ -27,45 +29,90 @@ Projeto_2-_Full-Stack_de_Controle_Financeiro/
 |---|---|
 | Back-end | Node.js 20+, Express 5, jsonwebtoken, bcrypt, cors, dotenv, express-rate-limit |
 | Front-end | React 18, Vite 6, React Router 6, Axios, Recharts |
-| Banco | _a definir pelo grupo_ |
+| Banco | PostgreSQL 16 (driver `pg`, com pool de conexões) |
+| Infra | Docker + Docker Compose |
 
 ## Como rodar
 
-Pré-requisito: Node.js 20 ou superior.
+### Opção A — Docker (recomendada: um comando)
 
-### 1. Back-end
+Pré-requisito: Docker com Compose v2.
 
 ```bash
-cd backend
-npm install
-cp .env.example .env          # no Windows: copy .env.example .env
-npm run dev                    # API em http://localhost:3000
+docker compose up --build
 ```
 
-Enquanto o banco não estiver ligado, a API roda com `MODO_BANCO=memoria`: os dados de demonstração são recriados a cada vez que ela sobe.
+Na primeira vez isso: baixa o PostgreSQL, cria o banco, aplica o `schema.sql`, carrega os dados de demonstração e sobe a API e o front.
 
-Usuários de demonstração (senha `senha1234`):
-- `ana@email.com` — 3 meses de lançamentos, dois cartões e compras parceladas
+| Serviço | Endereço |
+|---|---|
+| Front-end | http://localhost:5173 |
+| API | http://localhost:3000/api/status |
+| PostgreSQL | `localhost:5432` (usuário, senha e banco: `financas`) |
+
+Login de demonstração (senha `senha1234`):
+- `ana@email.com` — 4 meses de lançamentos, dois cartões, compras parceladas e recorrências
 - `bruno@email.com` — usado para testar o isolamento entre usuários
 
-Testes automáticos da API (12 testes; sobem o servidor numa porta separada):
+Comandos úteis:
 
 ```bash
-npm test
+docker compose up --build -d          # sobe em segundo plano
+docker compose logs -f backend        # acompanha a API
+docker compose exec backend npm run seed:reset   # recarrega os dados de demonstração
+docker compose exec backend npm test             # 12 testes de ponta a ponta (usam um banco separado, financas_teste)
+docker compose exec db psql -U financas          # abre o console SQL
 ```
 
-### 2. Front-end
+#### Encerrar os serviços
+
+Quando terminar de usar o projeto, execute na raiz do repositório:
 
 ```bash
+docker compose down
+```
+
+Esse comando encerra e remove os containers e a rede do Compose, mas **preserva o volume `caderneta_pgdata` e os dados do PostgreSQL**. Para iniciar novamente, use `docker compose up -d`.
+
+> **Atenção:** não use `docker compose down -v` para um encerramento normal. A opção `-v` também remove o volume do banco e apaga os dados persistidos.
+
+Para mudar senha do banco, porta ou segredo do JWT: `cp .env.example .env` e edite (o `.env` não vai para o Git).
+
+### Opção B — Sem Docker para a API e o front
+
+Pré-requisitos: Node.js 20+ e um PostgreSQL 14+ rodando.
+
+```bash
+# 1. banco (uma vez)
+createdb financas        # ou: docker compose up -d db
+
+# 2. back-end
+cd backend
+npm install
+cp .env.example .env     # ajuste DATABASE_URL se precisar
+npm run db:schema        # cria as tabelas
+npm run seed             # dados de demonstração
+npm run dev              # API em http://localhost:3000
+
+# 3. front-end (outro terminal)
 cd frontend
 npm install
-cp .env.example .env          # VITE_API_URL=http://localhost:3000/api
-npm run dev                    # http://localhost:5173
+npm run dev              # http://localhost:5173
 ```
 
-### 3. Banco de dados
+### Banco de dados
 
-_Seção a ser completada pelo responsável pelo banco: como criar o banco, rodar o schema e o seed, e configurar `DATABASE_URL` no `.env`. Depois disso, `MODO_BANCO=banco`._
+Modelo, restrições e decisões em [`docs/BANCO-DE-DADOS.md`](docs/BANCO-DE-DADOS.md).
+
+| O quê | Onde / comando |
+|---|---|
+| DDL (tabelas, FKs, UNIQUE, CHECK, índices) | `backend/database/schema.sql` |
+| Aplicar o schema (idempotente) | `npm run db:schema` |
+| Seed (2 usuários, 4 meses de lançamentos, parcelas e recorrências) | `npm run seed` (`seed:se-vazio` só se o banco estiver vazio; `seed:reset` apaga tudo e recarrega) |
+| Conexão e pool | `backend/src/config/db.js` (variável `DATABASE_URL`) |
+| Acesso a dados | só em `backend/src/models/*.model.js`, com SQL parametrizado (`$1, $2...`) |
+
+No Docker, o back-end aplica o schema e o seed sozinho ao subir. Os testes (`npm test`) criam e usam um banco separado (`<nome>_teste`), então não mexem nos dados de desenvolvimento.
 
 ## Variáveis de ambiente (backend/.env)
 
@@ -73,11 +120,12 @@ _Seção a ser completada pelo responsável pelo banco: como criar o banco, roda
 |---|---|
 | `PORT` | Porta da API (padrão 3000) |
 | `FRONTEND_URL` | Origem liberada no CORS (padrão `http://localhost:5173`) |
-| `JWT_SECRET` | Segredo de assinatura do token. Obrigatório com banco real |
+| `JWT_SECRET` | Segredo de assinatura do token. Obrigatório em produção |
 | `JWT_EXPIRA_EM` | Validade do token (padrão `1h`) |
 | `LOGIN_MAX_TENTATIVAS` | Tentativas de login por IP a cada 15 min (padrão 10) |
-| `MODO_BANCO` | `memoria` ou `banco` |
-| `DATABASE_URL` | Conexão com o banco |
+| `DATABASE_URL` | Conexão com o PostgreSQL. Ex.: `postgres://financas:financas@localhost:5432/financas` |
+| `DB_POOL_MAX` | Máximo de conexões do pool (padrão 10) |
+| `NODE_ENV` | Com `production`, a API se recusa a iniciar sem um `JWT_SECRET` de verdade |
 
 O `.env` não vai para o Git (está no `.gitignore`); o `.env.example` vai.
 
@@ -129,6 +177,8 @@ Todas as respostas de erro seguem o mesmo formato:
 **Segurança.** Senha com bcrypt (custo 10); o hash nunca sai da API. Login com mensagem genérica e tempo igual para e-mail inexistente. Rate limit no login. CORS restrito à origem do front. Toda entrada é validada e limpa no servidor. O id do usuário vem sempre do token, e registros de outro usuário respondem 404.
 
 **Front-end.** `AuthContext` guarda token e usuário (o token sobrevive ao recarregar, via `localStorage`). `services/api.js` é o único ponto de acesso à API: injeta o token e, ao receber 401, faz logout e volta ao login. A sessão também expira sozinha no horário de expiração do token. Todas as telas tratam carregando, lista vazia e erro, e o layout se adapta ao celular (lançamentos viram cartões e os formulários abrem de baixo para cima).
+
+**Banco de dados.** PostgreSQL com o driver `pg`. A unicidade de e-mail e CPF é garantida por `UNIQUE` no banco (a verificação prévia na rota só serve para dar a mensagem mais cedo); a rota trata o erro `23505` e responde 409. As parcelas são gravadas dentro de uma transação (`transacao()` em `config/db.js`, que guarda a conexão da transação em um `AsyncLocalStorage`, então os models não precisam saber se há transação aberta). Os relatórios usam `GROUP BY`/`SUM` no próprio banco. Lançamentos têm FK composta `(categoria_id, usuario_id)` e `(fonte_destino_id, usuario_id)`, então o banco recusa categoria ou fonte de outro usuário mesmo que a API erre. Detalhes em `docs/BANCO-DE-DADOS.md`.
 
 ## Saúde financeira — como as dicas são geradas
 
