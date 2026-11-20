@@ -12,7 +12,7 @@ Aplicação full stack de controle financeiro: API REST em **Node.js + Express**
 
 ## Apresentação
 
-▶️ **Vídeo no YouTube:** [assistir à apresentação](COLE_AQUI_O_LINK_DO_YOUTUBE)
+▶️ **Vídeo no YouTube:** [assistir à apresentação](https://youtu.be/mGZJk3YLC9I)
 
 ```
 Projeto_2-_Full-Stack_de_Controle_Financeiro/
